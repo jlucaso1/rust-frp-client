@@ -1,6 +1,6 @@
 use anyhow::Result;
 use futures::prelude::*;
-use std::process;
+use std::{net::ToSocketAddrs, process};
 use tokio::{net::TcpSocket, task};
 use tokio_util::compat::TokioAsyncReadCompatExt;
 use yamux::{Config as YamuxConfig, Connection, Control, Mode, WindowUpdateMode};
@@ -20,7 +20,7 @@ impl Service {
             let mut yamux_cfg = YamuxConfig::default();
             yamux_cfg.set_split_send_size(crate::PAYLOAD_SIZE);
             yamux_cfg.set_window_update_mode(WindowUpdateMode::OnRead);
-            let address = cfg.server_addr().parse().unwrap();
+            let address = cfg.server_addr().to_socket_addrs()?.next().unwrap();
             let socket = TcpSocket::new_v4().expect("new_v4");
             let stream = socket.connect(address).await.expect("connect").compat();
             Connection::new(stream, yamux_cfg, Mode::Client)
