@@ -13,15 +13,13 @@ pub struct Proxy {
 #[derive(Debug, Clone)]
 pub struct ClientCommonConfig {
     server_addr: String,
-    server_port: u16,
     token: String,
 }
 
 impl ClientCommonConfig {
     pub fn new() -> ClientCommonConfig {
         ClientCommonConfig {
-            server_addr: "127.0.0.1".to_string(),
-            server_port: 7000,
+            server_addr: "127.0.0.1:7000".to_string(),
 
             token: "".to_string(),
         }
@@ -107,10 +105,6 @@ impl Config {
         &self.common.server_addr
     }
 
-    pub fn server_port(&self) -> u16 {
-        self.common.server_port
-    }
-
     pub fn auth_token(&self) -> &str {
         &self.common.token
     }
@@ -139,7 +133,6 @@ impl Config {
 
     fn parse_common_config(&mut self, frpc_props: &FrpcProps) -> Result<()> {
         self.common.server_addr = frpc_props.remote_addr.to_string();
-        self.common.server_port = frpc_props.server_port;
 
         Ok(())
     }

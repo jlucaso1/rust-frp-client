@@ -20,9 +20,7 @@ impl Service {
             let mut yamux_cfg = YamuxConfig::default();
             yamux_cfg.set_split_send_size(crate::PAYLOAD_SIZE);
             yamux_cfg.set_window_update_mode(WindowUpdateMode::OnRead);
-            let address = format!("{}:{}", cfg.server_addr(), cfg.server_port())
-                .parse()
-                .unwrap();
+            let address = cfg.server_addr().parse().unwrap();
             let socket = TcpSocket::new_v4().expect("new_v4");
             let stream = socket.connect(address).await.expect("connect").compat();
             Connection::new(stream, yamux_cfg, Mode::Client)

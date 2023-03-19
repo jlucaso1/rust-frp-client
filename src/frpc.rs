@@ -24,14 +24,6 @@ pub fn define_command_line_options(mut app: Command<'_>) -> Command<'_> {
                 .help("local port"),
         )
         .arg(
-            Arg::new("server_port")
-                .short('R')
-                .long("server-port")
-                .required(true)
-                .takes_value(true)
-                .help("server port"),
-        )
-        .arg(
             Arg::new("remote_addr")
                 .short('r')
                 .long("remote-addr")
@@ -65,22 +57,14 @@ pub struct FrpcProps {
     pub local_port: u16,
     pub remote_port: u16,
     pub remote_addr: String,
-    pub server_port: u16,
 }
 
 impl FrpcProps {
-    pub fn new(
-        protocol: String,
-        local_port: u16,
-        remote_port: u16,
-        remote_addr: String,
-        server_port: u16,
-    ) -> Self {
+    pub fn new(protocol: String, local_port: u16, remote_port: u16, remote_addr: String) -> Self {
         Self {
             protocol,
             local_port,
             remote_port,
-            server_port,
             remote_addr,
         }
     }
@@ -92,7 +76,6 @@ pub fn main(matches: &ArgMatches) -> ExitCode {
         matches.value_of("local_port").unwrap().parse().unwrap(),
         matches.value_of("remote_port").unwrap().parse().unwrap(),
         matches.value_of("remote_addr").unwrap().to_string(),
-        matches.value_of("server_port").unwrap().parse().unwrap(),
     );
 
     println!("{:?}", props);
