@@ -1,19 +1,20 @@
-use anyhow::{Error, Result};
+use anyhow::Result;
 use futures::io::{AsyncRead as FAsyncRead, AsyncWrite as FAsyncWrite};
-use futures::stream::TryStreamExt;
+
 use futures_util::io::{AsyncReadExt, AsyncWriteExt};
 use std::{collections::HashMap, str};
 use tokio::io::{self, AsyncRead, AsyncWrite};
-use tokio::{net::TcpStream, time::timeout};
+use tokio::net::TcpStream;
 use tokio_util::compat::{FuturesAsyncReadCompatExt, FuturesAsyncWriteCompatExt};
 use yamux::Stream;
 
+use crate::msg::{TYPE_NEW_PROXY_RESP, TYPE_REQ_WORK_CONN};
 use crate::{
     config::{ClientTcpConfig, ClientWebConfig},
     crypto::FrpCoder,
     msg::{
-        msg_header_decode, msg_header_encode, MsgHeader, NewProxy, NewWorkConn, ReqWorkConn,
-        StartWorkConn, TypeNewProxyResp, TypeNewWorkConn, TypeReqWorkConn, MSG_HEADER_SIZE,
+        msg_header_decode, msg_header_encode, MsgHeader, NewProxy, NewWorkConn, StartWorkConn,
+        MSG_HEADER_SIZE, TYPE_NEW_WORK_CONN,
     },
     service::Service,
 };
@@ -27,7 +28,7 @@ pub struct Control {
 
 impl Control {
     pub fn new(service: Service, iv: [u8; 16]) -> Self {
-        let mut coder = FrpCoder::new(service.cfg.auth_token(), iv);
+        let coder = FrpCoder::new(service.cfg.auth_token(), iv);
 
         Self {
             coder,
@@ -41,23 +42,24 @@ impl Control {
             let mut buf = [0; 4096];
             let n = main_stream.read(&mut buf).await?;
             let mut plain_msg = buf[0..n].to_vec();
-            self.coder.decrypt(&mut plain_msg);
+            self.coder.decrypt(&mut plain_msg).unwrap();
             let hdr: [u8; MSG_HEADER_SIZE] = plain_msg[0..MSG_HEADER_SIZE]
                 .try_into()
                 .expect("slice with incorrect length");
             let header: MsgHeader = msg_header_decode(&hdr);
             assert_eq!(header.len as usize, n - MSG_HEADER_SIZE);
             self.handle_msg(&header, &plain_msg[MSG_HEADER_SIZE..n])
-                .await;
+                .await
+                .unwrap();
 
-            self.send_proxy_conf(main_stream).await;
+            self.send_proxy_conf(main_stream).await.unwrap();
         }
     }
 
     pub async fn handle_msg(&mut self, header: &MsgHeader, msg: &[u8]) -> Result<()> {
         match header.msg_type {
-            TypeNewProxyResp => self.handle_new_proxy_resp(msg).await,
-            TypeReqWorkConn => self.handle_req_work_conn().await,
+            TYPE_NEW_PROXY_RESP => self.handle_new_proxy_resp(msg).await,
+            TYPE_REQ_WORK_CONN => self.handle_req_work_conn().await,
             _ => Err(anyhow::anyhow!("unsupported type {:?}", header)),
         }
     }
@@ -66,27 +68,28 @@ impl Control {
         let work_conn = NewWorkConn::new(self.service.run_id.clone(), &self.service.cfg);
         let mut work_stream = self.service.main_ctl.open_stream().await.unwrap();
         let frame = work_conn.to_string().into_bytes();
-        let hdr = MsgHeader::new(TypeNewWorkConn, frame.len() as u64);
+        let hdr = MsgHeader::new(TYPE_NEW_WORK_CONN, frame.len() as u64);
         work_stream
             .write_all(&msg_header_encode(&hdr).to_vec())
-            .await;
-        work_stream.write_all(&frame).await;
+            .await
+            .unwrap();
+        work_stream.write_all(&frame).await.unwrap();
 
         let conf = self.service.get_conf().clone();
         tokio::spawn(async move {
             let mut msg_hdr = [0; MSG_HEADER_SIZE];
-            work_stream.read_exact(&mut msg_hdr).await;
+            work_stream.read_exact(&mut msg_hdr).await.unwrap();
             let header: MsgHeader = msg_header_decode(&msg_hdr.try_into().unwrap());
             let mut msg = vec![0; header.len as usize];
-            work_stream.read_exact(&mut msg).await;
+            work_stream.read_exact(&mut msg).await.unwrap();
             let resp = String::from_utf8_lossy(&msg);
             let start_work_conn: StartWorkConn = serde_json::from_str(&resp).unwrap();
 
             let prxy = conf.get_proxy(&start_work_conn.proxy_name).unwrap();
-            let mut local_stream =
+            let local_stream =
                 TcpStream::connect(format!("{}:{}", prxy.server_addr, prxy.server_port)).await;
 
-            proxy(local_stream.unwrap(), work_stream).await;
+            proxy(local_stream.unwrap(), work_stream).await.unwrap();
         });
 
         Ok(())
@@ -108,7 +111,7 @@ impl Control {
         let iv = self.coder.iv();
         main_stream.write_all(iv).await?;
 
-        let mut cfg = self.service.get_conf().clone();
+        let cfg = self.service.get_conf().clone();
         self.send_tcp_proxy_conf(main_stream, &cfg.tcp_configs)
             .await?;
         self.send_web_proxy_conf(main_stream, &cfg.web_configs)

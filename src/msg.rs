@@ -3,7 +3,7 @@ use chrono::Utc;
 use futures_util::io::{AsyncReadExt, AsyncWriteExt};
 use md5;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, env::consts, mem::size_of};
+use std::{collections::HashMap, env::consts};
 use yamux::Stream;
 
 use crate::{config::Config, crypto::FrpCoder};
@@ -49,7 +49,7 @@ impl Login {
 
     pub async fn send_msg(&self, main_stream: &mut Stream) -> Result<LoginResp> {
         let frame = self.to_string().into_bytes();
-        let hdr = MsgHeader::new(TypeLogin, frame.len() as u64);
+        let hdr = MsgHeader::new(TYPE_LOGIN, frame.len() as u64);
         main_stream
             .write_all(&msg_header_encode(&hdr).to_vec())
             .await?;
@@ -105,7 +105,7 @@ impl ReqWorkConn {
         assert_eq!((n < 128), true);
         println!("ReqWorkConn read {}", n);
         let mut dbuf = buf[0..n].to_vec();
-        decoder.decrypt(&mut dbuf);
+        decoder.decrypt(&mut dbuf).unwrap();
         println!("dbuf {:?}", dbuf);
 
         Ok(())
@@ -184,11 +184,11 @@ impl NewProxy {
         let frame = self.to_string().into_bytes();
         let cap = frame.len() + MSG_HEADER_SIZE;
         let mut data: Vec<u8> = vec![0; cap];
-        data[0] = TypeNewProxy.0;
+        data[0] = TYPE_NEW_PROXY.0;
         data[1..MSG_HEADER_SIZE].copy_from_slice(&frame.len().to_be_bytes());
         data[MSG_HEADER_SIZE..].copy_from_slice(&frame);
 
-        encoder.encypt(&mut data);
+        encoder.encypt(&mut data).unwrap();
         main_stream.write_all(&data).await?;
 
         Ok(())
@@ -222,30 +222,30 @@ impl MsgHeader {
 pub struct MsgType(u8);
 
 #[allow(non_camel_case_types)]
-pub const TypeLogin: MsgType = MsgType('o' as u8);
-pub const TypeLoginResp: MsgType = MsgType('1' as u8);
+pub const TYPE_LOGIN: MsgType = MsgType('o' as u8);
+pub const TYPE_LOGIN_RESP: MsgType = MsgType('1' as u8);
 
-pub const TypeNewProxy: MsgType = MsgType('p' as u8);
-pub const TypeNewProxyResp: MsgType = MsgType('2' as u8);
-pub const TypeCloseProxy: MsgType = MsgType('c' as u8);
+pub const TYPE_NEW_PROXY: MsgType = MsgType('p' as u8);
+pub const TYPE_NEW_PROXY_RESP: MsgType = MsgType('2' as u8);
+pub const TYPE_CLOSE_PROXY: MsgType = MsgType('c' as u8);
 
-pub const TypeNewWorkConn: MsgType = MsgType('w' as u8);
-pub const TypeReqWorkConn: MsgType = MsgType('r' as u8);
-pub const TypeStartWorkConn: MsgType = MsgType('s' as u8);
+pub const TYPE_NEW_WORK_CONN: MsgType = MsgType('w' as u8);
+pub const TYPE_REQ_WORK_CONN: MsgType = MsgType('r' as u8);
+pub const TYPE_START_WORK_CONN: MsgType = MsgType('s' as u8);
 
-pub const TypeNewVisitorConn: MsgType = MsgType('v' as u8);
-pub const TypeNewVisitorConnResp: MsgType = MsgType('3' as u8);
+pub const TYPE_NEW_VISITOR_CONN: MsgType = MsgType('v' as u8);
+pub const TYPE_NEW_VISITOR_CONN_RESP: MsgType = MsgType('3' as u8);
 
-pub const TypePing: MsgType = MsgType('h' as u8);
-pub const TypePong: MsgType = MsgType('4' as u8);
+pub const TYPE_PING: MsgType = MsgType('h' as u8);
+pub const TYPE_PONG: MsgType = MsgType('4' as u8);
 
-pub const TypeUDPPacket: MsgType = MsgType('u' as u8);
+pub const TYPE_UDPPACKET: MsgType = MsgType('u' as u8);
 
-pub const TypeNatHoleVisitor: MsgType = MsgType('i' as u8);
-pub const TypeNatHoleClient: MsgType = MsgType('n' as u8);
-pub const TypeNatHoleResp: MsgType = MsgType('m' as u8);
-pub const TypeNatHoleClientDetectOK: MsgType = MsgType('d' as u8);
-pub const TypeNatHoleSid: MsgType = MsgType('5' as u8);
+pub const TYPE_NAT_HOLE_VISITOR: MsgType = MsgType('i' as u8);
+pub const TYPE_NAT_HOLE_CLIENT: MsgType = MsgType('n' as u8);
+pub const TYPE_NAT_HOLE_RESP: MsgType = MsgType('m' as u8);
+pub const TYPE_NAT_HOLE_CLIENT_DETECT_OK: MsgType = MsgType('d' as u8);
+pub const TYPE_NAT_HOLE_SID: MsgType = MsgType('5' as u8);
 
 pub const MSG_HEADER_SIZE: usize = 9;
 

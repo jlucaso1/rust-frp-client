@@ -91,9 +91,9 @@ pub struct Config {
 
 impl Config {
     pub fn new() -> Self {
-        let mut common: ClientCommonConfig = ClientCommonConfig::new();
-        let mut tcp_configs: HashMap<String, ClientTcpConfig> = HashMap::new();
-        let mut web_configs: HashMap<String, ClientWebConfig> = HashMap::new();
+        let common: ClientCommonConfig = ClientCommonConfig::new();
+        let tcp_configs: HashMap<String, ClientTcpConfig> = HashMap::new();
+        let web_configs: HashMap<String, ClientWebConfig> = HashMap::new();
 
         Self {
             common,
@@ -106,9 +106,9 @@ impl Config {
         let i = Ini::load_from_file(config_file).unwrap();
         for (sec, prop) in i.iter() {
             if "common".eq(sec.unwrap()) {
-                self.parse_common_config(sec.unwrap(), &prop);
+                self.parse_common_config(sec.unwrap(), &prop).unwrap();
             } else {
-                self.parse_proxy_config(sec.unwrap(), &i, &prop);
+                self.parse_proxy_config(sec.unwrap(), &i, &prop).unwrap();
             }
         }
 
@@ -149,7 +149,7 @@ impl Config {
         }
     }
 
-    fn parse_common_config(&mut self, name: &str, prop: &Properties) -> Result<()> {
+    fn parse_common_config(&mut self, _name: &str, prop: &Properties) -> Result<()> {
         for (k, v) in prop.iter() {
             match k {
                 "server_addr" => self.common.server_addr = v.to_string(),
