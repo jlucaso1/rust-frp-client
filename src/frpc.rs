@@ -6,14 +6,47 @@ use crate::config::Config;
 use crate::service::Service;
 
 pub fn define_command_line_options(mut app: Command<'_>) -> Command<'_> {
-    app = app.arg(
-        Arg::new("config")
-            .short('c')
-            .long("config")
-            .required(true)
-            .takes_value(true)
-            .help("frpc configuration file"),
-    );
+    app = app
+        .arg(
+            Arg::new("protocol")
+                .short('p')
+                .long("protocol")
+                .required(true)
+                .takes_value(true)
+                .help("protocol"),
+        )
+        .arg(
+            Arg::new("local_port")
+                .short('l')
+                .long("local-port")
+                .required(true)
+                .takes_value(true)
+                .help("local port"),
+        )
+        .arg(
+            Arg::new("server_port")
+                .short('R')
+                .long("server-port")
+                .required(true)
+                .takes_value(true)
+                .help("server port"),
+        )
+        .arg(
+            Arg::new("remote_addr")
+                .short('r')
+                .long("remote-addr")
+                .required(true)
+                .takes_value(true)
+                .help("remote address"),
+        )
+        .arg(
+            Arg::new("remote_port")
+                .short('s')
+                .long("remote-port")
+                .required(true)
+                .takes_value(true)
+                .help("remote port"),
+        );
 
     app
 }
@@ -26,10 +59,46 @@ async fn start_service(config: Config) -> Result<()> {
     Ok(())
 }
 
+#[derive(Debug)]
+pub struct FrpcProps {
+    pub protocol: String,
+    pub local_port: u16,
+    pub remote_port: u16,
+    pub remote_addr: String,
+    pub server_port: u16,
+}
+
+impl FrpcProps {
+    pub fn new(
+        protocol: String,
+        local_port: u16,
+        remote_port: u16,
+        remote_addr: String,
+        server_port: u16,
+    ) -> Self {
+        Self {
+            protocol,
+            local_port,
+            remote_port,
+            server_port,
+            remote_addr,
+        }
+    }
+}
+
 pub fn main(matches: &ArgMatches) -> ExitCode {
-    let config_file = matches.value_of("config").unwrap();
+    let props = FrpcProps::new(
+        matches.value_of("protocol").unwrap_or("tcp").to_string(),
+        matches.value_of("local_port").unwrap().parse().unwrap(),
+        matches.value_of("remote_port").unwrap().parse().unwrap(),
+        matches.value_of("remote_addr").unwrap().to_string(),
+        matches.value_of("server_port").unwrap().parse().unwrap(),
+    );
+
+    println!("{:?}", props);
+
     let mut client_config = Config::new();
-    client_config.load_config(config_file).unwrap();
+    client_config.load_config(&props).unwrap();
     start_service(client_config).unwrap();
 
     ExitCode::SUCCESS

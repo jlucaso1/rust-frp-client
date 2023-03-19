@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
-use ini::{Ini, Properties};
 use std::collections::HashMap;
+
+use crate::frpc::FrpcProps;
 
 #[derive(Debug, Clone)]
 pub struct Proxy {
@@ -13,23 +14,16 @@ pub struct Proxy {
 pub struct ClientCommonConfig {
     server_addr: String,
     server_port: u16,
-    pool_count: u32,
-    tcp_mux: bool,
     token: String,
-    heartbeat_interval: u32,
-    heartbeat_timeout: u32,
 }
 
 impl ClientCommonConfig {
     pub fn new() -> ClientCommonConfig {
         ClientCommonConfig {
-            server_addr: "0.0.0.0".to_string(),
+            server_addr: "127.0.0.1".to_string(),
             server_port: 7000,
-            pool_count: 1,
-            tcp_mux: true,
+
             token: "".to_string(),
-            heartbeat_interval: 30,
-            heartbeat_timeout: 90,
         }
     }
 }
@@ -102,15 +96,9 @@ impl Config {
         }
     }
 
-    pub fn load_config(&mut self, config_file: &str) -> Result<()> {
-        let i = Ini::load_from_file(config_file).unwrap();
-        for (sec, prop) in i.iter() {
-            if "common".eq(sec.unwrap()) {
-                self.parse_common_config(sec.unwrap(), &prop).unwrap();
-            } else {
-                self.parse_proxy_config(sec.unwrap(), &i, &prop).unwrap();
-            }
-        }
+    pub fn load_config(&mut self, frpc_props: &FrpcProps) -> Result<()> {
+        self.parse_common_config(&frpc_props).unwrap();
+        self.parse_proxy_config(&frpc_props).unwrap();
 
         Ok(())
     }
@@ -149,63 +137,20 @@ impl Config {
         }
     }
 
-    fn parse_common_config(&mut self, _name: &str, prop: &Properties) -> Result<()> {
-        for (k, v) in prop.iter() {
-            match k {
-                "server_addr" => self.common.server_addr = v.to_string(),
-                "server_port" => self.common.server_port = v.parse::<u16>().unwrap(),
-                "auth_token" => self.common.token = v.to_string(),
-                "heartbeat_interval" => self.common.heartbeat_interval = v.parse::<u32>().unwrap(),
-                "heartbeat_timeout" => self.common.heartbeat_timeout = v.parse::<u32>().unwrap(),
-                "tcp_mux" => {
-                    if v.eq(&"false".to_string()) {
-                        self.common.tcp_mux = false
-                    }
-                }
-                "pool_count" => self.common.pool_count = v.parse::<u32>().unwrap(),
-                _ => println!("dont support {}", k),
-            }
-        }
+    fn parse_common_config(&mut self, frpc_props: &FrpcProps) -> Result<()> {
+        self.common.server_addr = frpc_props.remote_addr.to_string();
+        self.common.server_port = frpc_props.server_port;
 
         Ok(())
     }
 
-    fn parse_proxy_config(&mut self, name: &str, config: &Ini, prop: &Properties) -> Result<()> {
-        let section = config.section(Some(name)).unwrap();
-        let stype = section.get("type").unwrap();
-
-        if stype.eq("tcp") {
-            let mut tcp_proxy_config = ClientTcpConfig::new();
-
-            for (k, v) in prop.iter() {
-                match k {
-                    "local_ip" => tcp_proxy_config.local_ip = v.to_string(),
-                    "local_port" => tcp_proxy_config.local_port = v.parse::<u16>().unwrap(),
-                    "remote_port" => tcp_proxy_config.remote_port = v.parse::<u16>().unwrap(),
-                    "type" => (),
-                    _ => println!("invalid key {}", k),
-                }
-            }
-
-            self.tcp_configs.insert(name.to_string(), tcp_proxy_config);
-        } else if stype.eq("http") || stype.eq("https") {
-            let mut web_proxy_config = ClientWebConfig::new(stype.to_string());
-
-            for (k, v) in prop.iter() {
-                match k {
-                    "local_ip" => web_proxy_config.local_ip = v.to_string(),
-                    "local_port" => web_proxy_config.local_port = v.parse::<u16>().unwrap(),
-                    "custom_domains" => web_proxy_config.custom_domains = Some(v.to_string()),
-                    "subdomain" => web_proxy_config.subdomain = Some(v.to_string()),
-                    "type" => (),
-                    _ => println!("invalid key {}", k),
-                }
-            }
-
-            self.web_configs.insert(name.to_string(), web_proxy_config);
-        } else {
-            println!("{} not support", stype);
-        }
+    fn parse_proxy_config(&mut self, frpc_props: &FrpcProps) -> Result<()> {
+        let mut tcp_proxy_config = ClientTcpConfig::new();
+        tcp_proxy_config.local_ip = String::from("127.0.0.1");
+        tcp_proxy_config.local_port = frpc_props.local_port;
+        tcp_proxy_config.remote_port = frpc_props.remote_port;
+        self.tcp_configs
+            .insert("service".to_string(), tcp_proxy_config);
 
         Ok(())
     }
