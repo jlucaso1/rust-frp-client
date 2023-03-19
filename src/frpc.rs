@@ -11,9 +11,9 @@ pub fn define_command_line_options(mut app: Command<'_>) -> Command<'_> {
             Arg::new("protocol")
                 .short('p')
                 .long("protocol")
-                .required(true)
                 .takes_value(true)
-                .help("protocol"),
+                .help("protocol")
+                .default_value("tcp"),
         )
         .arg(
             Arg::new("local_port")
