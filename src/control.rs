@@ -2,6 +2,7 @@ use anyhow::Result;
 use futures::io::{AsyncRead as FAsyncRead, AsyncWrite as FAsyncWrite};
 
 use futures_util::io::{AsyncReadExt, AsyncWriteExt};
+use std::process::exit;
 use std::{collections::HashMap, str};
 use tokio::io::{self, AsyncRead, AsyncWrite};
 use tokio::net::TcpStream;
@@ -10,7 +11,7 @@ use yamux::Stream;
 
 use crate::msg::{TYPE_NEW_PROXY_RESP, TYPE_REQ_WORK_CONN};
 use crate::{
-    config::{ClientTcpConfig, ClientWebConfig},
+    config::ClientTcpConfig,
     crypto::FrpCoder,
     msg::{
         msg_header_decode, msg_header_encode, MsgHeader, NewProxy, NewWorkConn, StartWorkConn,
@@ -98,7 +99,9 @@ impl Control {
     async fn handle_new_proxy_resp(&mut self, msg: &[u8]) -> Result<()> {
         let res = str::from_utf8(msg).unwrap();
         println!("new proxy response {}", res);
-
+        if res.contains("error") {
+            exit(1)
+        }
         Ok(())
     }
 
@@ -114,8 +117,6 @@ impl Control {
         let cfg = self.service.get_conf().clone();
         self.send_tcp_proxy_conf(main_stream, &cfg.tcp_configs)
             .await?;
-        self.send_web_proxy_conf(main_stream, &cfg.web_configs)
-            .await?;
 
         self.send_proxy = true;
 
@@ -130,29 +131,6 @@ impl Control {
         for (proxy_name, tcp_config) in configs {
             let mut new_proxy = NewProxy::new(&proxy_name, &tcp_config.service_type);
             new_proxy.set_remote_port(tcp_config.remote_port);
-            new_proxy.send_msg(main_stream, &mut self.coder).await?;
-        }
-
-        Ok(())
-    }
-
-    async fn send_web_proxy_conf(
-        &mut self,
-        main_stream: &mut Stream,
-        configs: &HashMap<String, ClientWebConfig>,
-    ) -> Result<()> {
-        for (proxy_name, web_config) in configs {
-            let mut new_proxy = NewProxy::new(&proxy_name, &web_config.service_type);
-            if !web_config.custom_domains.is_none() {
-                let mut domains = Vec::new();
-                let custom_domain = web_config.custom_domains.as_ref().unwrap();
-                domains.push(custom_domain.to_string());
-                new_proxy.set_custom_domains(&domains);
-            }
-            if !web_config.subdomain.is_none() {
-                new_proxy.set_subdomain(web_config.subdomain.as_ref().unwrap());
-            }
-
             new_proxy.send_msg(main_stream, &mut self.coder).await?;
         }
 

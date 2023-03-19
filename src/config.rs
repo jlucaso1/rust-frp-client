@@ -46,51 +46,19 @@ impl ClientTcpConfig {
 }
 
 #[derive(Debug, Clone)]
-pub struct ClientWebConfig {
-    pub service_type: String,
-    local_ip: String,
-    local_port: u16,
-    pub custom_domains: Option<String>,
-    pub subdomain: Option<String>,
-}
-
-impl ClientWebConfig {
-    pub fn new(stype: String) -> ClientWebConfig {
-        ClientWebConfig {
-            service_type: stype,
-            local_ip: "127.0.0.1".to_string(),
-            local_port: 0,
-            custom_domains: None,
-            subdomain: None,
-        }
-    }
-
-    pub fn check(&self) -> bool {
-        if self.custom_domains.is_none() && self.subdomain.is_none() {
-            return false;
-        }
-
-        return true;
-    }
-}
-
-#[derive(Debug, Clone)]
 pub struct Config {
     common: ClientCommonConfig,
     pub tcp_configs: HashMap<String, ClientTcpConfig>,
-    pub web_configs: HashMap<String, ClientWebConfig>,
 }
 
 impl Config {
     pub fn new() -> Self {
         let common: ClientCommonConfig = ClientCommonConfig::new();
         let tcp_configs: HashMap<String, ClientTcpConfig> = HashMap::new();
-        let web_configs: HashMap<String, ClientWebConfig> = HashMap::new();
 
         Self {
             common,
             tcp_configs,
-            web_configs,
         }
     }
 
@@ -118,14 +86,6 @@ impl Config {
                 server_port: config.local_port,
                 proxy_type: "tcp".to_string(),
             })
-        } else if self.web_configs.contains_key(proxy_name) {
-            let config = self.web_configs.get(proxy_name).unwrap();
-
-            Ok(Proxy {
-                server_addr: config.local_ip.clone(),
-                server_port: config.local_port,
-                proxy_type: "web".to_string(),
-            })
         } else {
             Err(anyhow!("no such proxy"))
         }
@@ -133,6 +93,7 @@ impl Config {
 
     fn parse_common_config(&mut self, frpc_props: &FrpcProps) -> Result<()> {
         self.common.server_addr = frpc_props.remote_addr.to_string();
+        self.common.token = frpc_props.token.to_string();
 
         Ok(())
     }
